@@ -11,12 +11,18 @@ export const auth = betterAuth({
   }),
   appName: "CBG Digital Payment Voucher System",
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  baseURL:
+    process.env.BETTER_AUTH_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+    "http://localhost:3000",
   trustedOrigins: [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    process.env.BETTER_AUTH_URL || "http://localhost:3000",
-  ],
+    process.env.BETTER_AUTH_URL || "",
+    process.env.NEXT_PUBLIC_APP_URL || "",
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
+    "https://*.vercel.app",
+  ].filter(Boolean),
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

@@ -45,6 +45,7 @@ export default function LoginPage() {
         } else {
           toast.success("Signed in successfully!");
           router.push("/");
+          router.refresh();
         }
       }
     } catch (err: unknown) {
@@ -55,11 +56,31 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = (demoEmail: string, demoName: string) => {
+  const handleDemoLogin = async (demoEmail: string, demoName: string) => {
     setEmail(demoEmail);
     setName(demoName);
     setPassword("cbgDemo2026!");
-    toast.info(`Pre-filled credentials for ${demoName}`);
+    setLoading(true);
+    toast.info(`Signing in as ${demoName}...`);
+
+    try {
+      const res = await signIn.email({
+        email: demoEmail,
+        password: "cbgDemo2026!",
+      });
+      if (res.error) {
+        toast.error(res.error.message || "Failed to sign in");
+      } else {
+        toast.success(`Signed in as ${demoName}!`);
+        router.push("/");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Authentication error";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
