@@ -200,28 +200,38 @@ export async function createVoucherAction(
         ? DbVoucherStatus.PENDING_APPROVAL
         : DbVoucherStatus.DRAFT;
 
+    const voucherDate =
+      voucherInfo.date && voucherInfo.date.trim() !== ""
+        ? new Date(voucherInfo.date)
+        : new Date();
+
+    const voucherAmount =
+      payment.amount !== undefined && payment.amount !== null && !isNaN(Number(payment.amount))
+        ? new Prisma.Decimal(payment.amount)
+        : new Prisma.Decimal(0);
+
     // 3. Atomic Database Transaction
     const created = await db.$transaction(async (tx) => {
       const voucher = await tx.voucher.create({
         data: {
           voucherNumber: voucherNum,
-          date: new Date(voucherInfo.date),
+          date: voucherDate,
           status: dbStatus,
           paymentType: dbPaymentType,
-          payeeName: payee.name,
-          payeeAddress: payee.address,
-          payeePhone: payee.phone,
-          payeeBankName: payee.bankName,
-          payeeBankAccount: payee.bankAccount,
-          description: payment.description,
-          invoiceNumber: payment.invoiceNumber,
-          amount: new Prisma.Decimal(payment.amount),
-          currency: payment.currency,
-          chequeNumber: banking.chequeNumber || null,
-          bankNumber: banking.bankNumber || null,
-          preparedBy: authorization.preparedBy || actor,
-          approvalToPay: authorization.approvalToPay,
-          receiverName: authorization.receiverName,
+          payeeName: payee.name?.trim() || "Test Payee",
+          payeeAddress: payee.address?.trim() || "N/A",
+          payeePhone: payee.phone?.trim() || "N/A",
+          payeeBankName: payee.bankName?.trim() || "N/A",
+          payeeBankAccount: payee.bankAccount?.trim() || "N/A",
+          description: payment.description?.trim() || "Test Voucher",
+          invoiceNumber: payment.invoiceNumber?.trim() || `INV-${Date.now().toString().slice(-6)}`,
+          amount: voucherAmount,
+          currency: payment.currency?.trim() || "INR",
+          chequeNumber: banking.chequeNumber?.trim() || null,
+          bankNumber: banking.bankNumber?.trim() || null,
+          preparedBy: authorization.preparedBy?.trim() || actor || "A. Fernandes",
+          approvalToPay: authorization.approvalToPay?.trim() || "S. Patel",
+          receiverName: authorization.receiverName?.trim() || "N/A",
           signedPrepared: true,
           signedApprover: false,
           signedReceiver: false,

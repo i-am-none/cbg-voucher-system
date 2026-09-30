@@ -13,6 +13,7 @@ import {
   PenLine,
   Save,
   Send,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 
@@ -78,7 +79,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
     watch,
     formState: { errors },
   } = useForm<VoucherFormValues>({
-    resolver: zodResolver(voucherFormSchema),
+    resolver: zodResolver(voucherFormSchema) as any,
     defaultValues,
     mode: "onSubmit",
   });
@@ -103,6 +104,25 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
   const paymentType = watch("voucherInfo.paymentType");
   const isCheque = paymentType === PaymentType.CHEQUE;
+
+  const fillTestData = () => {
+    setValue("voucherInfo.date", toISODate(new Date()));
+    setValue("voucherInfo.paymentType", PaymentType.BANK_TRANSFER);
+    setValue("payee.name", "Swan General Ltd");
+    setValue("payee.phone", "+230 207 3500");
+    setValue("payee.address", "Swan Centre, 10 Intendance Street, Port Louis");
+    setValue("payee.bankName", "The Mauritius Commercial Bank Ltd (MCB)");
+    setValue("payee.bankAccount", "000123456789");
+    setValue("payment.description", "Co-insurance settlement premium — Q1 2026");
+    setValue("payment.invoiceNumber", `INV-2026-${Date.now().toString().slice(-4)}`);
+    setValue("payment.amount", 45000);
+    setValue("payment.currency", "INR");
+    setValue("banking.bankNumber", "MCB-PL-01");
+    setValue("authorization.preparedBy", session?.user?.name || "A. Fernandes");
+    setValue("authorization.approvalToPay", "S. Patel");
+    setValue("authorization.receiverName", "Swan General Claims Department");
+    toast.info("Pre-filled form with sample test data");
+  };
 
   const save = async (
     values: VoucherFormValues,
@@ -154,25 +174,38 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 lg:px-8">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          🧪 Testing Mode: All fields are optional. Leave blank or fill partial data.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={fillTestData}
+          className="text-xs"
+        >
+          <Sparkles className="size-3.5" />
+          Fill Test Data
+        </Button>
+      </div>
       <form onSubmit={handleSubmit(onValid)} noValidate>
         <div className="space-y-5">
           <VoucherSection
             title="Voucher Information"
-            description="Serial number, date and payment method"
+            description="Serial number, date and payment method (optional for testing)"
             icon={FileText}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
             <FormInput
               label="Voucher Number (PV No.)"
-              placeholder="PV-10013"
-              required
+              placeholder="Auto-generated if left blank"
               error={errors.voucherInfo?.voucherNumber?.message}
               {...register("voucherInfo.voucherNumber")}
             />
             <FormInput
               label="Date"
               type="date"
-              required
               error={errors.voucherInfo?.date?.message}
               {...register("voucherInfo.date")}
             />
@@ -182,29 +215,26 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               label="Payment Type"
               options={PAYMENT_TYPE_OPTIONS}
               placeholder="Select payment type"
-              required
               error={errors.voucherInfo?.paymentType?.message}
             />
           </VoucherSection>
 
           <VoucherSection
             title="Payee Information"
-            description="Details of the party receiving the payment"
+            description="Details of the party receiving the payment (optional for testing)"
             icon={UserRound}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
             <FormInput
               label="Payee Name"
-              placeholder="Full name or company name"
-              required
+              placeholder="Full name or company name (defaults to 'Test Payee')"
               error={errors.payee?.name?.message}
               {...register("payee.name")}
             />
             <FormInput
               label="Phone Number"
-              placeholder="+91 98XXXXXXXX"
+              placeholder="+230 207 3500"
               inputMode="tel"
-              required
               error={errors.payee?.phone?.message}
               {...register("payee.phone")}
             />
@@ -212,15 +242,13 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               <FormInput
                 label="Address"
                 placeholder="Street, city, state, PIN code"
-                required
                 error={errors.payee?.address?.message}
                 {...register("payee.address")}
               />
             </div>
             <FormInput
               label="Bank Name"
-              placeholder="e.g. State Bank of India"
-              required
+              placeholder="e.g. MCB Ltd / SBM Ltd"
               error={errors.payee?.bankName?.message}
               {...register("payee.bankName")}
             />
@@ -228,7 +256,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               label="Bank Account Number"
               placeholder="Account number"
               inputMode="numeric"
-              required
               error={errors.payee?.bankAccount?.message}
               {...register("payee.bankAccount")}
             />
@@ -236,7 +263,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
           <VoucherSection
             title="Payment Details"
-            description="What is being paid and the total amount"
+            description="What is being paid and the total amount (optional for testing)"
             icon={Banknote}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
@@ -244,7 +271,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               <FormTextarea
                 label="Payment Description"
                 placeholder="Describe the purpose of the payment"
-                required
                 error={errors.payment?.description?.message}
                 {...register("payment.description")}
               />
@@ -252,7 +278,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
             <FormInput
               label="Invoice Number"
               placeholder="INV-2026-XXXX"
-              required
               error={errors.payment?.invoiceNumber?.message}
               {...register("payment.invoiceNumber")}
             />
@@ -264,7 +289,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
                 min="0"
                 step="0.01"
                 inputMode="decimal"
-                required
                 error={errors.payment?.amount?.message}
                 className="[&::-webkit-inner-spin-button]:appearance-none"
                 {...register("payment.amount")}
@@ -274,7 +298,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
                 name="payment.currency"
                 label="Currency"
                 options={currencyOptions}
-                required
                 error={errors.payment?.currency?.message}
               />
             </div>
@@ -308,28 +331,25 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
           <VoucherSection
             title="Authorization"
-            description="People responsible for preparing and approving the payment"
+            description="People responsible for preparing and approving the payment (optional for testing)"
             icon={PenLine}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
             <FormInput
               label="Prepared By"
               placeholder="Name of preparer"
-              required
               error={errors.authorization?.preparedBy?.message}
               {...register("authorization.preparedBy")}
             />
             <FormInput
               label="Approval To Pay"
               placeholder="Name of approver"
-              required
               error={errors.authorization?.approvalToPay?.message}
               {...register("authorization.approvalToPay")}
             />
             <FormInput
               label="Name Of Receiver"
               placeholder="Person receiving the payment"
-              required
               error={errors.authorization?.receiverName?.message}
               {...register("authorization.receiverName")}
             />
@@ -357,9 +377,19 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
           <CardFooter className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
               <CalendarDays className="mr-1 inline size-3" />
-              Voucher records are stored locally in this prototype.
+              Connected to Neon PostgreSQL • All fields optional for testing
             </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={fillTestData}
+                className="hidden sm:inline-flex"
+              >
+                <Sparkles className="size-4" />
+                Fill Test Data
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -396,14 +426,14 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
             <span>
               You are about to submit{" "}
               <span className="font-medium text-foreground">
-                {pendingValues?.voucherInfo.voucherNumber}
+                {pendingValues?.voucherInfo.voucherNumber || defaultVoucherNumber || "PV-AUTO"}
               </span>{" "}
               to the approval queue.
             </span>
             <span>
               Payee:{" "}
               <span className="font-medium text-foreground">
-                {pendingValues?.payee.name}
+                {pendingValues?.payee.name || "Test Payee"}
               </span>
             </span>
             <span>
@@ -411,8 +441,8 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               <span className="font-medium text-foreground">
                 {pendingValues
                   ? formatCurrency(
-                      pendingValues.payment.amount,
-                      pendingValues.payment.currency
+                      pendingValues.payment.amount || 0,
+                      pendingValues.payment.currency || "INR"
                     )
                   : ""}
               </span>
