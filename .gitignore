@@ -35,6 +35,10 @@ yarn-error.log*
 .env*.local
 !.env.example
 
+# local tokens and credentials
+*token*.txt
+.github_token.txt
+
 # vercel
 .vercel
 
