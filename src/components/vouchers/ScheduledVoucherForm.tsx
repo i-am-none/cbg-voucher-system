@@ -117,6 +117,7 @@ export function ScheduledVoucherForm() {
         toast.success("Voucher scheduled successfully!", {
           description: `Scheduled for generation on ${values.scheduledDate}`,
         });
+        router.refresh();
         router.push("/vouchers/scheduled");
       } else {
         toast.error("Failed to schedule voucher", {
