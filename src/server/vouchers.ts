@@ -102,16 +102,64 @@ function mapDbVoucherToFrontend(
   };
 }
 
+// Helper: find the next highest available sequential PV Number
+async function resolveSafeVoucherNumber(
+  tx: Prisma.TransactionClient,
+  preferredNumber?: string
+): Promise<string> {
+  // If preferredNumber was provided and does not exist in DB, use it
+  if (preferredNumber && preferredNumber.trim() !== "") {
+    const existing = await tx.voucher.findUnique({
+      where: { voucherNumber: preferredNumber.trim() },
+      select: { id: true },
+    });
+    if (!existing) {
+      return preferredNumber.trim();
+    }
+  }
+
+  // Otherwise, find the current max number from both vouchers and sequence
+  const latestVouchers = await tx.voucher.findMany({
+    select: { voucherNumber: true },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  let maxNum = 10012;
+  for (const v of latestVouchers) {
+    const match = v.voucherNumber.match(/^PV-(\d+)$/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > maxNum) {
+        maxNum = parsed;
+      }
+    }
+  }
+
+  const seq = await tx.voucherSequence.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default", currentValue: maxNum },
+  });
+
+  const nextVal = Math.max(seq.currentValue, maxNum) + 1;
+
+  await tx.voucherSequence.update({
+    where: { id: "default" },
+    data: { currentValue: nextVal },
+  });
+
+  return `PV-${nextVal}`;
+}
+
 // Generate sequential PV Number using database transaction
 export async function getNextVoucherNumber(): Promise<string> {
-  const result = await db.$transaction(async (tx) => {
-    const seq = await tx.voucherSequence.upsert({
-      where: { id: "default" },
-      update: { currentValue: { increment: 1 } },
-      create: { id: "default", currentValue: 10013 },
-    });
-    return `PV-${seq.currentValue}`;
-  }, { maxWait: 15000, timeout: 30000 });
+  const result = await db.$transaction(
+    async (tx) => {
+      return resolveSafeVoucherNumber(tx);
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
   return result;
 }
 
@@ -181,12 +229,6 @@ export async function createVoucherAction(
 
     const { voucherInfo, payee, payment, banking, authorization } = parsed.data;
 
-    // Concurrency-safe number check or generate
-    let voucherNum = voucherInfo.voucherNumber;
-    if (!voucherNum || voucherNum.trim() === "") {
-      voucherNum = await getNextVoucherNumber();
-    }
-
     const dbPaymentType: DbPaymentType =
       voucherInfo.paymentType === PaymentType.CHEQUE
         ? DbPaymentType.CHEQUE
@@ -211,11 +253,17 @@ export async function createVoucherAction(
         ? new Prisma.Decimal(payment.amount)
         : new Prisma.Decimal(0);
 
-    // 3. Atomic Database Transaction
+    // 3. Atomic Database Transaction with Collision-Safe Voucher Number Resolution
     const created = await db.$transaction(async (tx) => {
+      // Safely resolve unique sequential voucher number (prevents duplicate key errors)
+      const finalVoucherNum = await resolveSafeVoucherNumber(
+        tx,
+        voucherInfo.voucherNumber
+      );
+
       const voucher = await tx.voucher.create({
         data: {
-          voucherNumber: voucherNum,
+          voucherNumber: finalVoucherNum,
           date: voucherDate,
           status: dbStatus,
           paymentType: dbPaymentType,
@@ -264,7 +312,7 @@ export async function createVoucherAction(
           actorId: actorId,
           actorName: actor,
           action: "voucher:create",
-          note: `Voucher ${voucherNum} created in Neon PostgreSQL`,
+          note: `Voucher ${voucher.voucherNumber} created in Neon PostgreSQL`,
         },
       });
 

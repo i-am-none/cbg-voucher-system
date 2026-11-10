@@ -84,7 +84,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
       voucherInfo: {
         ...DRAFT_DEFAULT_VALUES.voucherInfo,
         subsidiary: "chartered-brokers",
-        voucherNumber: defaultVoucherNumber ?? "",
+        voucherNumber: "",
         date: toISODate(new Date()),
       },
       authorization: {
@@ -93,7 +93,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
         approvalToPay: "Anoop",
       },
     }),
-    [defaultVoucherNumber]
+    []
   );
 
   const {
@@ -130,12 +130,6 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
   }, [companyAccounts]);
 
   useEffect(() => {
-    if (defaultVoucherNumber) {
-      const current = watch("voucherInfo.voucherNumber");
-      if (!current) {
-        setValue("voucherInfo.voucherNumber", defaultVoucherNumber);
-      }
-    }
     if (session?.user?.name) {
       const currentPreparedBy = watch("authorization.preparedBy");
       if (
@@ -146,7 +140,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultVoucherNumber, session, setValue]);
+  }, [session, setValue]);
 
   const paymentType = watch("voucherInfo.paymentType");
   const isCheque = paymentType === PaymentType.CHEQUE;
@@ -337,7 +331,8 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
           >
             <FormInput
               label="Voucher Number (PV No.)"
-              placeholder="Auto-generated if left blank"
+              placeholder={defaultVoucherNumber ? `Auto-generated (e.g. ${defaultVoucherNumber})` : "Auto-generated"}
+              hint="Leave blank to automatically assign the next available number"
               error={errors.voucherInfo?.voucherNumber?.message}
               {...register("voucherInfo.voucherNumber")}
             />
