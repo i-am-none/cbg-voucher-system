@@ -96,3 +96,49 @@ export type VoucherAction =
   | "mark-paid"
   | "export"
   | "delete";
+
+export const ScheduledVoucherStatus = {
+  SCHEDULED: "scheduled",
+  GENERATED: "generated",
+  CANCELLED: "cancelled",
+} as const;
+
+export type ScheduledVoucherStatus =
+  (typeof ScheduledVoucherStatus)[keyof typeof ScheduledVoucherStatus];
+
+export interface ScheduledVoucher {
+  id: string;
+  scheduledDate: string; // YYYY-MM-DD
+  status: ScheduledVoucherStatus;
+  subsidiary: "chartered-brokers" | "medibroker";
+  paymentType: PaymentType;
+  payee: {
+    name: string;
+    address: string;
+    phone: string;
+    bankAccount: string;
+    bankName: string;
+  };
+  payment: {
+    description: string;
+    invoiceNumber: string;
+    amount: number;
+    currency: string;
+  };
+  banking: {
+    chequeNumber: string;
+    bankNumber: string;
+  };
+  authorization: {
+    preparedBy: string;
+    approvalToPay: string;
+    receiverName: string;
+  };
+  initialStatus: "draft" | "pending-approval";
+  generatedVoucherId?: string;
+  generatedVoucherNumber?: string;
+  generatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByName?: string;
+}

@@ -262,3 +262,51 @@ model VoucherAuditEvent {
   @@index([timestamp])
   @@map("voucher_audit_event")
 }
+
+model ScheduledVoucher {
+  id                     String      @id @default(cuid())
+  scheduledDate          DateTime    @db.Date
+  status                 String      @default("scheduled") // "scheduled", "generated", "cancelled"
+  subsidiary             String      @default("chartered-brokers") // "chartered-brokers" | "medibroker"
+  paymentType            PaymentType @default(BANK_TRANSFER)
+
+  // Payee info
+  payeeName              String
+  payeeAddress           String?
+  payeePhone             String?
+  payeeBankName          String?
+  payeeBankAccount       String?
+
+  // Payment info
+  description            String      @db.Text
+  invoiceNumber          String?
+  amount                 Decimal     @db.Decimal(15, 2)
+  currency               String      @default("MUR")
+
+  // Banking info
+  bankNumber             String?     // Subsidiary credited bank account
+  chequeNumber           String?
+
+  // Authorization info
+  preparedBy             String
+  approvalToPay          String
+  receiverName           String?
+
+  // Workflow options
+  initialStatus          String      @default("pending-approval")
+
+  // Generation linkage
+  generatedVoucherId     String?
+  generatedVoucherNumber String?
+  generatedAt            DateTime?
+
+  createdById            String?
+  createdByName          String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  @@index([scheduledDate])
+  @@index([status])
+  @@map("scheduled_voucher")
+}
+

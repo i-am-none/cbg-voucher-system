@@ -15,7 +15,12 @@ interface SidebarProps {
 
 function isActive(pathname: string, href: string, segmentPrefix: string): boolean {
   if (href === "/") return pathname === "/";
-  if (href === "/vouchers" && pathname.startsWith("/vouchers/new")) return false;
+  if (
+    href === "/vouchers" &&
+    (pathname.startsWith("/vouchers/new") || pathname.startsWith("/vouchers/scheduled"))
+  ) {
+    return false;
+  }
   return pathname.startsWith(segmentPrefix);
 }
 

@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   FilePlus2,
   Files,
   LayoutDashboard,
@@ -30,5 +31,11 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/vouchers",
     icon: Files,
     segmentPrefix: "/vouchers",
+  },
+  {
+    title: "Scheduled vouchers",
+    href: "/vouchers/scheduled",
+    icon: CalendarClock,
+    segmentPrefix: "/vouchers/scheduled",
   },
 ];

@@ -70,3 +70,68 @@ export const DRAFT_DEFAULT_VALUES: VoucherFormValues = {
     receiverName: "",
   },
 };
+
+export const scheduledVoucherFormSchema = z.object({
+  scheduledDate: z.string().min(1, "Target generation date is required"),
+  subsidiary: z.enum(["chartered-brokers", "medibroker"]).default("chartered-brokers"),
+  initialStatus: z.enum(["draft", "pending-approval"]).default("pending-approval"),
+  paymentType: z.enum([
+    PaymentType.CASH,
+    PaymentType.CHEQUE,
+    PaymentType.BANK_TRANSFER,
+    PaymentType.OTHER,
+  ]),
+  payee: z.object({
+    name: z.string().min(1, "Payee / Creditor name is required"),
+    address: z.string().optional().or(z.literal("")),
+    phone: z.string().optional().or(z.literal("")),
+    bankAccount: z.string().optional().or(z.literal("")),
+    bankName: z.string().optional().or(z.literal("")),
+  }),
+  payment: z.object({
+    description: z.string().min(1, "Payment description is required"),
+    invoiceNumber: z.string().optional().or(z.literal("")),
+    amount: z.coerce.number().min(0.01, "Amount must be greater than zero"),
+    currency: z.string().default("MUR"),
+  }),
+  banking: z.object({
+    chequeNumber: z.string().optional().or(z.literal("")),
+    bankNumber: z.string().optional().or(z.literal("")),
+  }),
+  authorization: z.object({
+    preparedBy: z.string().min(1, "Maker name is required"),
+    approvalToPay: z.string().min(1, "Approver name is required"),
+    receiverName: z.string().optional().or(z.literal("")),
+  }),
+});
+
+export type ScheduledVoucherFormValues = z.infer<typeof scheduledVoucherFormSchema>;
+
+export const SCHEDULED_DEFAULT_VALUES: ScheduledVoucherFormValues = {
+  scheduledDate: "",
+  subsidiary: "chartered-brokers",
+  initialStatus: "pending-approval",
+  paymentType: PaymentType.BANK_TRANSFER,
+  payee: {
+    name: "",
+    address: "",
+    phone: "",
+    bankAccount: "",
+    bankName: "",
+  },
+  payment: {
+    description: "",
+    invoiceNumber: "",
+    amount: 0,
+    currency: "MUR",
+  },
+  banking: {
+    chequeNumber: "",
+    bankNumber: "",
+  },
+  authorization: {
+    preparedBy: "Thasha",
+    approvalToPay: "Anoop",
+    receiverName: "",
+  },
+};
