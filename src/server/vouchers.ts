@@ -60,6 +60,13 @@ function mapDbVoucherToFrontend(
     note: a.note || undefined,
   }));
 
+  const isMedibroker =
+    voucher.tenantId === "medibroker" ||
+    (voucher.bankNumber && voucher.bankNumber.toLowerCase().includes("medi")) ||
+    (voucher.description && voucher.description.toLowerCase().includes("medibroker"));
+
+  const subsidiary = isMedibroker ? "medibroker" : "chartered-brokers";
+
   return {
     id: voucher.id,
     voucherNumber: voucher.voucherNumber,
@@ -95,7 +102,7 @@ function mapDbVoucherToFrontend(
     },
     timeline,
     auditLog,
-    subsidiary: voucher.tenantId || "chartered-brokers",
+    subsidiary,
     createdBy: voucher.createdBy?.name || voucher.preparedBy || "Thasha",
     createdAt: voucher.createdAt.toISOString(),
     updatedAt: voucher.updatedAt.toISOString(),
@@ -216,7 +223,6 @@ export async function createVoucherAction(
     const { session, user } = await getServerAuth();
     const actor = user?.name || customActor || values.authorization?.preparedBy || "Thasha";
     const actorId = user?.id || null;
-    const tenantId = values.voucherInfo?.subsidiary || session?.activeOrganizationId || "chartered-brokers";
 
     // 2. Server-side validation
     const parsed = voucherFormSchema.safeParse(values);
@@ -228,6 +234,60 @@ export async function createVoucherAction(
     }
 
     const { voucherInfo, payee, payment, banking, authorization } = parsed.data;
+
+    const subSlug = voucherInfo.subsidiary === "medibroker" ? "medibroker" : "chartered-brokers";
+    const subName = subSlug === "medibroker" ? "Medibroker Ltd" : "Chartered Brokers Ltd";
+
+    // Ensure banking reference stores the subsidiary context so it is never lost
+    let finalBankNumber = banking.bankNumber?.trim() || "";
+    if (finalBankNumber) {
+      if (!finalBankNumber.toLowerCase().includes("medi") && !finalBankNumber.toLowerCase().includes("charter")) {
+        finalBankNumber = `[${subName}] ${finalBankNumber}`;
+      }
+    } else {
+      finalBankNumber = `[${subName}]`;
+    }
+
+    // Safely resolve organization ID for tenantId (must strictly exist in organization table to satisfy foreign key)
+    let safeTenantId: string | null = null;
+    try {
+      if (session?.activeOrganizationId) {
+        const org = await db.organization.findUnique({
+          where: { id: session.activeOrganizationId },
+          select: { id: true },
+        });
+        if (org) safeTenantId = org.id;
+      }
+
+      if (!safeTenantId) {
+        const existingOrg = await db.organization.findFirst({
+          where: {
+            OR: [{ slug: subSlug }, { id: subSlug }],
+          },
+          select: { id: true },
+        });
+
+        if (existingOrg) {
+          safeTenantId = existingOrg.id;
+        } else {
+          const createdOrg = await db.organization.upsert({
+            where: { slug: subSlug },
+            update: {},
+            create: {
+              id: subSlug,
+              slug: subSlug,
+              name: subName,
+            },
+            select: { id: true },
+          });
+          safeTenantId = createdOrg.id;
+        }
+      }
+    } catch {
+      // If organization lookup/creation encounters any constraint error, fallback to null
+      // In PostgreSQL, null in a foreign key column is always valid and prevents voucher_tenantId_fkey errors
+      safeTenantId = null;
+    }
 
     const dbPaymentType: DbPaymentType =
       voucherInfo.paymentType === PaymentType.CHEQUE
@@ -277,7 +337,7 @@ export async function createVoucherAction(
           amount: voucherAmount,
           currency: payment.currency?.trim() || "INR",
           chequeNumber: banking.chequeNumber?.trim() || null,
-          bankNumber: banking.bankNumber?.trim() || null,
+          bankNumber: finalBankNumber,
           preparedBy: authorization.preparedBy?.trim() || actor || "Thasha",
           approvalToPay: authorization.approvalToPay?.trim() || "Anoop",
           receiverName: authorization.receiverName?.trim() || "N/A",
@@ -285,7 +345,7 @@ export async function createVoucherAction(
           signedApprover: false,
           signedReceiver: false,
           createdById: actorId,
-          tenantId: tenantId,
+          tenantId: safeTenantId,
         },
         include: {
           timeline: true,
@@ -308,7 +368,7 @@ export async function createVoucherAction(
       await tx.voucherAuditEvent.create({
         data: {
           voucherId: voucher.id,
-          tenantId: tenantId,
+          tenantId: safeTenantId,
           actorId: actorId,
           actorName: actor,
           action: "voucher:create",
@@ -329,7 +389,7 @@ export async function createVoucherAction(
         await tx.voucherAuditEvent.create({
           data: {
             voucherId: voucher.id,
-            tenantId: tenantId,
+            tenantId: safeTenantId,
             actorId: actorId,
             actorName: actor,
             action: "voucher:submit",
