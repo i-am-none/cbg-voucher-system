@@ -59,7 +59,7 @@ function makeVoucher(input: SeedInput): Voucher {
   const number = `PV-${seq++}`;
   const date = new Date();
   date.setDate(date.getDate() - input.daysAgo);
-  const createdBy = ["R. Sharma", "P. Nair", "A. Fernandes"][input.daysAgo % 3];
+  const createdBy = ["Thasha", "Ravi"][input.daysAgo % 2];
   const timeline: TimelineEvent[] = [event("created", "Voucher created", input.daysAgo, createdBy)];
 
   if (input.status !== VoucherStatus.DRAFT) {
@@ -72,7 +72,7 @@ function makeVoucher(input: SeedInput): Voucher {
     input.status === VoucherStatus.PAID
   ) {
     timeline.push(
-      event("approved", "Approved", Math.max(input.daysAgo - 2, 0), "S. Patel")
+      event("approved", "Approved", Math.max(input.daysAgo - 2, 0), "Anoop")
     );
   }
   if (input.status === VoucherStatus.PAID) {
@@ -86,7 +86,7 @@ function makeVoucher(input: SeedInput): Voucher {
         "rejected",
         "Rejected",
         Math.max(input.daysAgo - 2, 0),
-        "S. Patel",
+        "Anoop",
         "Invoice details do not match the PO."
       )
     );
@@ -131,7 +131,7 @@ function makeVoucher(input: SeedInput): Voucher {
     },
     authorization: {
       preparedBy: createdBy,
-      approvalToPay: "S. Patel",
+      approvalToPay: "Anoop",
       receiverName: input.payeeName,
       signatures: {
         preparedBy: true,

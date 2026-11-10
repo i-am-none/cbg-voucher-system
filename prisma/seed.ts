@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, VoucherStatus, PaymentType } from "@prisma/client";
+import { hashPassword } from "better-auth/crypto";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -15,6 +16,9 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("Seeding Neon database with demo organization, users, and vouchers...");
+
+  const demoPassword = "cbgDemo2026!";
+  const hashedPassword = await hashPassword(demoPassword);
 
   // 1. Create Organization (CBG)
   const org = await prisma.organization.upsert({
@@ -36,85 +40,94 @@ async function main() {
     },
   });
 
-  // 3. Create Demo Users
-  const makerUser = await prisma.user.upsert({
-    where: { email: "a.fernandes@charteredbrokers.com" },
-    update: {},
+  // 3. Create Real Role Users
+  const thashaMaker = await prisma.user.upsert({
+    where: { email: "thasha@charteredbrokers.com" },
+    update: { name: "Thasha", role: "maker" },
     create: {
-      name: "A. Fernandes",
-      email: "a.fernandes@charteredbrokers.com",
+      name: "Thasha",
+      email: "thasha@charteredbrokers.com",
       role: "maker",
       emailVerified: true,
     },
   });
 
-  const approverUser = await prisma.user.upsert({
-    where: { email: "s.patel@charteredbrokers.com" },
-    update: {},
+  const raviMaker = await prisma.user.upsert({
+    where: { email: "ravi@charteredbrokers.com" },
+    update: { name: "Ravi", role: "maker" },
     create: {
-      name: "S. Patel",
-      email: "s.patel@charteredbrokers.com",
-      role: "approver",
-      emailVerified: true,
-    },
-  });
-
-  const adminUser = await prisma.user.upsert({
-    where: { email: "admin@charteredbrokers.com" },
-    update: {},
-    create: {
-      name: "CBG Administrator",
-      email: "admin@charteredbrokers.com",
-      role: "admin",
-      emailVerified: true,
-    },
-  });
-
-  // Associate members to Organization
-  await prisma.member.upsert({
-    where: {
-      organizationId_userId: {
-        organizationId: org.id,
-        userId: makerUser.id,
-      },
-    },
-    update: {},
-    create: {
-      organizationId: org.id,
-      userId: makerUser.id,
+      name: "Ravi",
+      email: "ravi@charteredbrokers.com",
       role: "maker",
+      emailVerified: true,
     },
   });
 
-  await prisma.member.upsert({
-    where: {
-      organizationId_userId: {
-        organizationId: org.id,
-        userId: approverUser.id,
-      },
-    },
-    update: {},
+  const ashwinaApprover = await prisma.user.upsert({
+    where: { email: "ashwina@charteredbrokers.com" },
+    update: { name: "Ashwina", role: "approver" },
     create: {
-      organizationId: org.id,
-      userId: approverUser.id,
+      name: "Ashwina",
+      email: "ashwina@charteredbrokers.com",
       role: "approver",
+      emailVerified: true,
     },
   });
 
-  await prisma.member.upsert({
-    where: {
-      organizationId_userId: {
-        organizationId: org.id,
-        userId: adminUser.id,
-      },
-    },
-    update: {},
+  const anoopAdmin = await prisma.user.upsert({
+    where: { email: "anoop@charteredbrokers.com" },
+    update: { name: "Anoop", role: "admin" },
     create: {
-      organizationId: org.id,
-      userId: adminUser.id,
+      name: "Anoop",
+      email: "anoop@charteredbrokers.com",
       role: "admin",
+      emailVerified: true,
     },
   });
+
+  // Associate members to Organization and create Credentials Account
+  for (const memberUser of [
+    { user: thashaMaker, role: "maker" },
+    { user: raviMaker, role: "maker" },
+    { user: ashwinaApprover, role: "approver" },
+    { user: anoopAdmin, role: "admin" },
+  ]) {
+    await prisma.member.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId: org.id,
+          userId: memberUser.user.id,
+        },
+      },
+      update: { role: memberUser.role },
+      create: {
+        organizationId: org.id,
+        userId: memberUser.user.id,
+        role: memberUser.role,
+      },
+    });
+
+    // Create or update credential Account record for Better Auth
+    await prisma.account.upsert({
+      where: {
+        providerId_accountId: {
+          providerId: "credential",
+          accountId: memberUser.user.id,
+        },
+      },
+      update: {
+        password: hashedPassword,
+        issuer: "local:credential",
+      },
+      create: {
+        userId: memberUser.user.id,
+        accountId: memberUser.user.id,
+        providerId: "credential",
+        issuer: "local:credential",
+        password: hashedPassword,
+      },
+    });
+  }
 
   // 4. Create Initial Seed Vouchers
   const sampleVouchers = [
@@ -134,25 +147,25 @@ async function main() {
       currency: "INR",
       chequeNumber: null,
       bankNumber: "MCB-PL-01",
-      preparedBy: "A. Fernandes",
-      approvalToPay: "S. Patel",
+      preparedBy: "Thasha",
+      approvalToPay: "Anoop",
       receiverName: "Swan General Ltd — Claims Dept",
       signedPrepared: true,
       signedApprover: true,
       signedReceiver: true,
-      createdById: makerUser.id,
+      createdById: thashaMaker.id,
       tenantId: org.id,
       timeline: [
-        { type: "created", label: "Voucher created", actor: "A. Fernandes", timestamp: new Date("2026-03-01T09:00:00Z") },
-        { type: "submitted", label: "Submitted for approval", actor: "A. Fernandes", timestamp: new Date("2026-03-01T10:15:00Z") },
-        { type: "approved", label: "Approved by Finance Director", actor: "S. Patel", timestamp: new Date("2026-03-02T14:30:00Z") },
-        { type: "paid", label: "Payment completed via MCB Direct", actor: "S. Patel", timestamp: new Date("2026-03-03T11:00:00Z") },
+        { type: "created", label: "Voucher created", actor: "Thasha", timestamp: new Date("2026-03-01T09:00:00Z") },
+        { type: "submitted", label: "Submitted for approval", actor: "Thasha", timestamp: new Date("2026-03-01T10:15:00Z") },
+        { type: "approved", label: "Approved by Finance Director", actor: "Anoop", timestamp: new Date("2026-03-02T14:30:00Z") },
+        { type: "paid", label: "Payment completed via MCB Direct", actor: "Anoop", timestamp: new Date("2026-03-03T11:00:00Z") },
       ],
       auditLog: [
-        { action: "voucher:create", actorName: "A. Fernandes", note: "Voucher record created" },
-        { action: "voucher:submit", actorName: "A. Fernandes", note: "Submitted for approval" },
-        { action: "voucher:approve", actorName: "S. Patel", note: "Approved by S. Patel" },
-        { action: "voucher:paid", actorName: "S. Patel", note: "Payment completed" },
+        { action: "voucher:create", actorName: "Thasha", note: "Voucher record created" },
+        { action: "voucher:submit", actorName: "Thasha", note: "Submitted for approval" },
+        { action: "voucher:approve", actorName: "Anoop", note: "Approved by Anoop" },
+        { action: "voucher:paid", actorName: "Anoop", note: "Payment completed" },
       ],
     },
     {
@@ -171,23 +184,23 @@ async function main() {
       currency: "INR",
       chequeNumber: "CHQ-882190",
       bankNumber: "SBM-CORP-04",
-      preparedBy: "A. Fernandes",
-      approvalToPay: "S. Patel",
+      preparedBy: "Ravi",
+      approvalToPay: "Ashwina",
       receiverName: "Mauritius Telecom Accounts",
       signedPrepared: true,
       signedApprover: true,
       signedReceiver: false,
-      createdById: makerUser.id,
+      createdById: raviMaker.id,
       tenantId: org.id,
       timeline: [
-        { type: "created", label: "Voucher created", actor: "A. Fernandes", timestamp: new Date("2026-03-05T08:30:00Z") },
-        { type: "submitted", label: "Submitted for approval", actor: "A. Fernandes", timestamp: new Date("2026-03-05T09:45:00Z") },
-        { type: "approved", label: "Approved by Operations Lead", actor: "S. Patel", timestamp: new Date("2026-03-06T10:00:00Z") },
+        { type: "created", label: "Voucher created", actor: "Ravi", timestamp: new Date("2026-03-05T08:30:00Z") },
+        { type: "submitted", label: "Submitted for approval", actor: "Ravi", timestamp: new Date("2026-03-05T09:45:00Z") },
+        { type: "approved", label: "Approved by Operations Lead", actor: "Ashwina", timestamp: new Date("2026-03-06T10:00:00Z") },
       ],
       auditLog: [
-        { action: "voucher:create", actorName: "A. Fernandes", note: "Voucher record created" },
-        { action: "voucher:submit", actorName: "A. Fernandes", note: "Submitted for approval" },
-        { action: "voucher:approve", actorName: "S. Patel", note: "Approved by S. Patel" },
+        { action: "voucher:create", actorName: "Ravi", note: "Voucher record created" },
+        { action: "voucher:submit", actorName: "Ravi", note: "Submitted for approval" },
+        { action: "voucher:approve", actorName: "Ashwina", note: "Approved by Ashwina" },
       ],
     },
     {
@@ -206,21 +219,21 @@ async function main() {
       currency: "INR",
       chequeNumber: null,
       bankNumber: "ABSA-MU-02",
-      preparedBy: "A. Fernandes",
-      approvalToPay: "S. Patel",
+      preparedBy: "Thasha",
+      approvalToPay: "Anoop",
       receiverName: "SICOM Underwriting Services",
       signedPrepared: true,
       signedApprover: false,
       signedReceiver: false,
-      createdById: makerUser.id,
+      createdById: thashaMaker.id,
       tenantId: org.id,
       timeline: [
-        { type: "created", label: "Voucher created", actor: "A. Fernandes", timestamp: new Date("2026-03-08T11:00:00Z") },
-        { type: "submitted", label: "Submitted for approval", actor: "A. Fernandes", timestamp: new Date("2026-03-08T11:20:00Z") },
+        { type: "created", label: "Voucher created", actor: "Thasha", timestamp: new Date("2026-03-08T11:00:00Z") },
+        { type: "submitted", label: "Submitted for approval", actor: "Thasha", timestamp: new Date("2026-03-08T11:20:00Z") },
       ],
       auditLog: [
-        { action: "voucher:create", actorName: "A. Fernandes", note: "Voucher record created" },
-        { action: "voucher:submit", actorName: "A. Fernandes", note: "Submitted for approval" },
+        { action: "voucher:create", actorName: "Thasha", note: "Voucher record created" },
+        { action: "voucher:submit", actorName: "Thasha", note: "Submitted for approval" },
       ],
     },
     {
@@ -239,19 +252,19 @@ async function main() {
       currency: "INR",
       chequeNumber: null,
       bankNumber: "MCB-MOKA-01",
-      preparedBy: "A. Fernandes",
-      approvalToPay: "S. Patel",
+      preparedBy: "Ravi",
+      approvalToPay: "Anoop",
       receiverName: "PwC Mauritius — Advisory",
       signedPrepared: false,
       signedApprover: false,
       signedReceiver: false,
-      createdById: makerUser.id,
+      createdById: raviMaker.id,
       tenantId: org.id,
       timeline: [
-        { type: "created", label: "Draft created", actor: "A. Fernandes", timestamp: new Date("2026-03-10T14:00:00Z") },
+        { type: "created", label: "Draft created", actor: "Ravi", timestamp: new Date("2026-03-10T14:00:00Z") },
       ],
       auditLog: [
-        { action: "voucher:create", actorName: "A. Fernandes", note: "Draft created" },
+        { action: "voucher:create", actorName: "Ravi", note: "Draft created" },
       ],
     },
   ];
@@ -284,7 +297,7 @@ async function main() {
           data: {
             voucherId: v.id,
             tenantId: org.id,
-            actorId: makerUser.id,
+            actorId: thashaMaker.id,
             actorName: a.actorName,
             action: a.action,
             note: a.note,

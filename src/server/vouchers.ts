@@ -95,7 +95,8 @@ function mapDbVoucherToFrontend(
     },
     timeline,
     auditLog,
-    createdBy: voucher.createdBy?.name || voucher.preparedBy || "A. Fernandes",
+    subsidiary: voucher.tenantId || "chartered-brokers",
+    createdBy: voucher.createdBy?.name || voucher.preparedBy || "Thasha",
     createdAt: voucher.createdAt.toISOString(),
     updatedAt: voucher.updatedAt.toISOString(),
   };
@@ -165,9 +166,9 @@ export async function createVoucherAction(
   try {
     // 1. Resolve server session
     const { session, user } = await getServerAuth();
-    const actor = user?.name || customActor || values.authorization?.preparedBy || "A. Fernandes";
+    const actor = user?.name || customActor || values.authorization?.preparedBy || "Thasha";
     const actorId = user?.id || null;
-    const tenantId = session?.activeOrganizationId || null;
+    const tenantId = values.voucherInfo?.subsidiary || session?.activeOrganizationId || "chartered-brokers";
 
     // 2. Server-side validation
     const parsed = voucherFormSchema.safeParse(values);
@@ -229,8 +230,8 @@ export async function createVoucherAction(
           currency: payment.currency?.trim() || "INR",
           chequeNumber: banking.chequeNumber?.trim() || null,
           bankNumber: banking.bankNumber?.trim() || null,
-          preparedBy: authorization.preparedBy?.trim() || actor || "A. Fernandes",
-          approvalToPay: authorization.approvalToPay?.trim() || "S. Patel",
+          preparedBy: authorization.preparedBy?.trim() || actor || "Thasha",
+          approvalToPay: authorization.approvalToPay?.trim() || "Anoop",
           receiverName: authorization.receiverName?.trim() || "N/A",
           signedPrepared: true,
           signedApprover: false,
@@ -324,7 +325,7 @@ export async function updateVoucherStatusAction(
 ): Promise<{ success: boolean; voucher?: Voucher; error?: string }> {
   try {
     const { user } = await getServerAuth();
-    const actor = user?.name || customActor || "S. Patel";
+    const actor = user?.name || customActor || "Anoop";
     const actorId = user?.id || null;
     const actorRole = (user?.role || "").toLowerCase();
 

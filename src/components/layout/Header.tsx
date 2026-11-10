@@ -33,7 +33,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       }
     : {
         name: DEMO_USER.name,
-        email: "a.fernandes@charteredbrokers.com",
+        email: "thasha@charteredbrokers.com",
         role: DEMO_USER.role,
       };
 

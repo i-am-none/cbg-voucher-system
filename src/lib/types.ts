@@ -49,6 +49,7 @@ export interface AuditEntry {
 export interface Voucher {
   id: string;
   voucherNumber: string;
+  subsidiary?: string;
   date: string;
   status: VoucherStatus;
   paymentType: PaymentType;

@@ -3,7 +3,8 @@
 import { Suspense, useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Files, FilePlus2, SearchX } from "lucide-react";
+import { Files, FilePlus2, SearchX, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -12,8 +13,9 @@ import {
   type DataTableColumn,
 } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/vouchers/StatusBadge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -34,6 +36,7 @@ import type { Voucher, VoucherStatus } from "@/lib/types";
 import { useVouchers } from "@/lib/voucher-store";
 
 type StatusFilter = VoucherStatus | "all";
+type SubsidiaryFilter = "all" | "chartered-brokers" | "medibroker";
 
 function VoucherHistoryContent() {
   const router = useRouter();
@@ -42,6 +45,7 @@ function VoucherHistoryContent() {
   
   const initialStatus = (searchParams.get("status") as StatusFilter) || "all";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
+  const [subsidiaryFilter, setSubsidiaryFilter] = useState<SubsidiaryFilter>("all");
   const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
@@ -59,9 +63,18 @@ function VoucherHistoryContent() {
       if (dateFilter && voucher.date !== dateFilter) {
         return false;
       }
+      if (subsidiaryFilter !== "all") {
+        const sub = (voucher.subsidiary || "chartered-brokers").toLowerCase();
+        if (subsidiaryFilter === "medibroker" && !sub.includes("medi")) {
+          return false;
+        }
+        if (subsidiaryFilter === "chartered-brokers" && sub.includes("medi")) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [vouchers, statusFilter, dateFilter]);
+  }, [vouchers, statusFilter, dateFilter, subsidiaryFilter]);
 
   const columns: DataTableColumn<Voucher>[] = [
     {
@@ -79,6 +92,29 @@ function VoucherHistoryContent() {
       sortable: true,
       sortValue: (row) => row.date,
       cell: (row) => formatDate(row.date),
+    },
+    {
+      key: "subsidiary",
+      header: "Subsidiary",
+      sortable: true,
+      sortValue: (row) => row.subsidiary || "chartered-brokers",
+      cell: (row) => {
+        const isMedibroker =
+          row.subsidiary === "medibroker" ||
+          row.subsidiary?.toLowerCase().includes("medi");
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+              isMedibroker
+                ? "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+            )}
+          >
+            {isMedibroker ? "Medi Broker" : "Chartered Brokers"}
+          </span>
+        );
+      },
     },
     {
       key: "payee",
@@ -128,13 +164,26 @@ function VoucherHistoryContent() {
         title="Voucher History"
         description="Search, filter and review all payment vouchers."
         actions={
-          <Link
-            href="/vouchers/new"
-            className={buttonVariants({ size: "default" })}
-          >
-            <FilePlus2 className="size-4 mr-1.5" />
-            Create Voucher
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                toast.info("Preparing Excel export...");
+                window.location.href = "/api/vouchers/export";
+              }}
+              className="gap-1.5 border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+            >
+              <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+              Export to Excel
+            </Button>
+            <Link
+              href="/vouchers/new"
+              className={buttonVariants({ size: "default" })}
+            >
+              <FilePlus2 className="size-4 mr-1.5" />
+              Create Voucher
+            </Link>
+          </div>
         }
       />
 
@@ -189,6 +238,21 @@ function VoucherHistoryContent() {
                     className="h-8 w-fit rounded-lg"
                     aria-label="Filter by date"
                   />
+                  <Select
+                    value={subsidiaryFilter}
+                    onValueChange={(value) =>
+                      setSubsidiaryFilter(value as SubsidiaryFilter)
+                    }
+                  >
+                    <SelectTrigger size="sm" className="h-8 w-44">
+                      <SelectValue placeholder="All subsidiaries" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All subsidiaries</SelectItem>
+                      <SelectItem value="chartered-brokers">Chartered Brokers Ltd</SelectItem>
+                      <SelectItem value="medibroker">Medibroker Ltd (Medi Broker)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Select
                     value={statusFilter}
                     onValueChange={(value) =>

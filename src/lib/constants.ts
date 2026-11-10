@@ -103,7 +103,11 @@ export const SHOWCASE_VALUES = {
   defaultCurrency: "INR",
 } as const;
 
+export const MAKERS = ["Thasha", "Ravi"] as const;
+export const APPROVERS = ["Anoop", "Ashwina"] as const;
+export const ADMINS = ["Anoop"] as const;
+
 export const DEMO_USER = {
-  name: "A. Fernandes",
+  name: "Thasha",
   role: "Accountant (Maker)",
 } as const;

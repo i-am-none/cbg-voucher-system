@@ -83,7 +83,7 @@ function VoucherDetails({
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const currentUserName = session?.user?.name || "A. Fernandes";
+  const currentUserName = session?.user?.name || "Thasha";
   const currentUserRole =
     ((session?.user as { role?: string })?.role || "maker").toLowerCase();
 
@@ -297,6 +297,13 @@ function VoucherDetails({
               <InfoRow label="Voucher Number">
                 <span className="font-bold text-foreground text-base">
                   {voucher.voucherNumber}
+                </span>
+              </InfoRow>
+              <InfoRow label="Subsidiary">
+                <span className="font-medium text-foreground">
+                  {voucher.subsidiary === "medibroker" || voucher.subsidiary?.toLowerCase().includes("medi")
+                    ? "Medibroker Ltd (Medi Broker)"
+                    : "Chartered Brokers Ltd"}
                 </span>
               </InfoRow>
               <InfoRow label="Date">{formatDate(voucher.date)}</InfoRow>

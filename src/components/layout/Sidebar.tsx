@@ -24,8 +24,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { data: session } = useSession();
 
   const user = session?.user || {
-    name: "A. Fernandes",
-    email: "a.fernandes@charteredbrokers.com",
+    name: "Thasha",
+    email: "thasha@charteredbrokers.com",
     role: "Maker (Preparer)",
   };
 

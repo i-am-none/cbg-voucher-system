@@ -5,6 +5,7 @@ import { PaymentType } from "@/lib/types";
 export const voucherFormSchema = z.object({
   voucherInfo: z.object({
     voucherNumber: z.string().optional().or(z.literal("")),
+    subsidiary: z.string().optional().default("chartered-brokers"),
     date: z.string().optional().or(z.literal("")),
     paymentType: z.enum([
       PaymentType.CASH,
@@ -42,6 +43,7 @@ export type VoucherFormValues = z.infer<typeof voucherFormSchema>;
 export const DRAFT_DEFAULT_VALUES: VoucherFormValues = {
   voucherInfo: {
     voucherNumber: "",
+    subsidiary: "chartered-brokers",
     date: "",
     paymentType: PaymentType.BANK_TRANSFER,
   },

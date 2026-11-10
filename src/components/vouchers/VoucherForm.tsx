@@ -15,6 +15,7 @@ import {
   Send,
   Sparkles,
   UserRound,
+  Check,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ import { VoucherSection } from "@/components/vouchers/VoucherSection";
 import {
   CURRENCIES,
   PAYMENT_TYPE_OPTIONS,
+  MAKERS,
+  APPROVERS,
 } from "@/lib/constants";
 import { formatCurrency, toISODate } from "@/lib/format";
 import { PaymentType, VoucherStatus } from "@/lib/types";
@@ -39,6 +42,12 @@ import {
 } from "@/lib/validation";
 import { useVouchers } from "@/lib/voucher-store";
 import { useSession } from "@/lib/auth-client";
+import {
+  SUBSIDIARIES,
+  SUBSIDIARY_OPTIONS,
+} from "@/lib/master-data/subsidiaries";
+import { CREDITORS, findCreditorByName } from "@/lib/master-data/creditors";
+import { cn } from "@/lib/utils";
 
 interface VoucherFormProps {
   defaultVoucherNumber?: string;
@@ -59,13 +68,29 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
     []
   );
 
+  const makerOptions = useMemo(
+    () => MAKERS.map((maker) => ({ value: maker, label: `${maker} (Maker)` })),
+    []
+  );
+
+  const approverOptions = useMemo(
+    () => APPROVERS.map((appr) => ({ value: appr, label: `${appr} (Approver)` })),
+    []
+  );
+
   const defaultValues = useMemo<VoucherFormValues>(
     () => ({
       ...DRAFT_DEFAULT_VALUES,
       voucherInfo: {
         ...DRAFT_DEFAULT_VALUES.voucherInfo,
+        subsidiary: "chartered-brokers",
         voucherNumber: defaultVoucherNumber ?? "",
         date: toISODate(new Date()),
+      },
+      authorization: {
+        ...DRAFT_DEFAULT_VALUES.authorization,
+        preparedBy: "Thasha",
+        approvalToPay: "Anoop",
       },
     }),
     [defaultVoucherNumber]
@@ -86,6 +111,24 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
   const { data: session } = useSession();
 
+  const selectedSubsidiary = (watch("voucherInfo.subsidiary") || "chartered-brokers") as
+    | "chartered-brokers"
+    | "medibroker";
+
+  // Corporate bank accounts for the selected subsidiary
+  const activeSubsidiary = SUBSIDIARIES[selectedSubsidiary] || SUBSIDIARIES["chartered-brokers"];
+  const companyAccounts = activeSubsidiary.bankAccounts;
+
+  const companyAccountSelectOptions = useMemo(() => {
+    return [
+      { value: "", label: "Select account to credit from..." },
+      ...companyAccounts.map((acc) => ({
+        value: `${acc.bankName} - ${acc.accountNumber} (${acc.use})`,
+        label: `${acc.use} • ${acc.bankName} (${acc.currency}) • A/C ${acc.accountNumber}`,
+      })),
+    ];
+  }, [companyAccounts]);
+
   useEffect(() => {
     if (defaultVoucherNumber) {
       const current = watch("voucherInfo.voucherNumber");
@@ -95,7 +138,10 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
     }
     if (session?.user?.name) {
       const currentPreparedBy = watch("authorization.preparedBy");
-      if (!currentPreparedBy || currentPreparedBy === DRAFT_DEFAULT_VALUES.authorization.preparedBy) {
+      if (
+        !currentPreparedBy ||
+        currentPreparedBy === DRAFT_DEFAULT_VALUES.authorization.preparedBy
+      ) {
         setValue("authorization.preparedBy", session.user.name);
       }
     }
@@ -105,23 +151,65 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
   const paymentType = watch("voucherInfo.paymentType");
   const isCheque = paymentType === PaymentType.CHEQUE;
 
+  // Auto-fill bank details when payee name matches a known creditor
+  const handlePayeeNameChange = (nameInput: string) => {
+    setValue("payee.name", nameInput);
+    const matched = findCreditorByName(nameInput);
+    if (matched) {
+      setValue("payee.bankName", matched.bankName);
+      setValue("payee.bankAccount", matched.bankAccount);
+      toast.success(`Auto-filled bank details for ${matched.name}`, {
+        description: `Bank: ${matched.bankName} • A/C: ${matched.bankAccount}`,
+      });
+    }
+  };
+
+  // Quick select a creditor from the master directory
+  const handleQuickSelectCreditor = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const creditorName = e.target.value;
+    if (!creditorName) return;
+    const creditor = CREDITORS.find((c) => c.name === creditorName);
+    if (creditor) {
+      setValue("payee.name", creditor.name);
+      setValue("payee.bankName", creditor.bankName);
+      setValue("payee.bankAccount", creditor.bankAccount);
+      toast.success(`Selected creditor: ${creditor.name}`, {
+        description: `${creditor.bankName} • Account: ${creditor.bankAccount}`,
+      });
+    }
+  };
+
+  // When user selects a company bank account to credit from
+  const handleCompanyAccountSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setValue("banking.bankNumber", val);
+    const foundAcc = companyAccounts.find(
+      (a) => `${a.bankName} - ${a.accountNumber} (${a.use})` === val
+    );
+    if (foundAcc) {
+      setValue("payment.currency", foundAcc.currency);
+      toast.info(`Selected credited account (${foundAcc.currency})`);
+    }
+  };
+
   const fillTestData = () => {
+    setValue("voucherInfo.subsidiary", "chartered-brokers");
     setValue("voucherInfo.date", toISODate(new Date()));
     setValue("voucherInfo.paymentType", PaymentType.BANK_TRANSFER);
-    setValue("payee.name", "Swan General Ltd");
+    setValue("payee.name", "SWAN");
     setValue("payee.phone", "+230 207 3500");
     setValue("payee.address", "Swan Centre, 10 Intendance Street, Port Louis");
-    setValue("payee.bankName", "The Mauritius Commercial Bank Ltd (MCB)");
-    setValue("payee.bankAccount", "000123456789");
+    setValue("payee.bankName", "MCB");
+    setValue("payee.bankAccount", "000200702513");
     setValue("payment.description", "Co-insurance settlement premium — Q1 2026");
     setValue("payment.invoiceNumber", `INV-2026-${Date.now().toString().slice(-4)}`);
     setValue("payment.amount", 45000);
-    setValue("payment.currency", "INR");
-    setValue("banking.bankNumber", "MCB-PL-01");
-    setValue("authorization.preparedBy", session?.user?.name || "A. Fernandes");
-    setValue("authorization.approvalToPay", "S. Patel");
-    setValue("authorization.receiverName", "Swan General Claims Department");
-    toast.info("Pre-filled form with sample test data");
+    setValue("payment.currency", "MUR");
+    setValue("banking.bankNumber", "The Mauritius Commercial Bank Ltd (MCB) - 000010312102 (Admin (MUR) expenses only)");
+    setValue("authorization.preparedBy", session?.user?.name || "Thasha");
+    setValue("authorization.approvalToPay", "Anoop");
+    setValue("authorization.receiverName", "Swan Finance Claims Department");
+    toast.info("Pre-filled form with verified CBG test data");
   };
 
   const save = async (
@@ -174,6 +262,55 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 lg:px-8">
+      {/* Subsidiary Selection Banner */}
+      <div className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Select Subsidiary / Corporate Association
+        </label>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Choose whether this voucher is issued for Chartered Brokers Ltd or Medibroker Ltd (Medi Broker).
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {SUBSIDIARY_OPTIONS.map((sub) => {
+            const isSelected = selectedSubsidiary === sub.value;
+            const subData = SUBSIDIARIES[sub.value as keyof typeof SUBSIDIARIES];
+            return (
+              <button
+                type="button"
+                key={sub.value}
+                onClick={() => {
+                  setValue("voucherInfo.subsidiary", sub.value);
+                  // Reset credited account selection to empty when switching subsidiary
+                  setValue("banking.bankNumber", "");
+                }}
+                className={cn(
+                  "relative flex flex-col items-start rounded-lg border p-3.5 text-left transition-all",
+                  isSelected
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                    : "border-border bg-background hover:border-primary/40 hover:bg-muted/30"
+                )}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <span className="font-semibold text-foreground text-sm">
+                    {sub.label}
+                  </span>
+                  {isSelected && (
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="size-3" />
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>BRN: {subData.brn}</span>
+                  <span>•</span>
+                  <span>VAT: {subData.vat}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           🧪 Testing Mode: All fields are optional. Leave blank or fill partial data.
@@ -189,11 +326,12 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
           Fill Test Data
         </Button>
       </div>
+
       <form onSubmit={handleSubmit(onValid)} noValidate>
         <div className="space-y-5">
           <VoucherSection
             title="Voucher Information"
-            description="Serial number, date and payment method (optional for testing)"
+            description="Serial number, date and payment method"
             icon={FileText}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
@@ -221,16 +359,55 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
           <VoucherSection
             title="Payee Information"
-            description="Details of the party receiving the payment (optional for testing)"
+            description="Party receiving the payment (select or type name for instant bank auto-fill)"
             icon={UserRound}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
-            <FormInput
-              label="Payee Name"
-              placeholder="Full name or company name (defaults to 'Test Payee')"
-              error={errors.payee?.name?.message}
-              {...register("payee.name")}
-            />
+            {/* Quick Creditor Autocomplete Selector */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-foreground">
+                ⚡ Quick Select Existing Creditor / Payee
+              </label>
+              <select
+                onChange={handleQuickSelectCreditor}
+                defaultValue=""
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">-- Or choose from creditor directory ({CREDITORS.length} creditors) --</option>
+                {CREDITORS.map((c) => (
+                  <option key={`${c.name}-${c.bankAccount}`} value={c.name}>
+                    {c.name} ({c.bankName} - A/C {c.bankAccount})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-1">
+              <label className="mb-1.5 block text-xs font-medium text-foreground">
+                Payee Name
+              </label>
+              <input
+                list="creditor-suggestions"
+                placeholder="Enter or search creditor name"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                {...register("payee.name", {
+                  onChange: (e) => handlePayeeNameChange(e.target.value),
+                })}
+              />
+              <datalist id="creditor-suggestions">
+                {CREDITORS.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.bankName} • A/C {c.bankAccount}
+                  </option>
+                ))}
+              </datalist>
+              {errors.payee?.name?.message && (
+                <p className="mt-1 text-xs text-destructive">
+                  {errors.payee.name.message}
+                </p>
+              )}
+            </div>
+
             <FormInput
               label="Phone Number"
               placeholder="+230 207 3500"
@@ -247,13 +424,13 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               />
             </div>
             <FormInput
-              label="Bank Name"
+              label="Payee Bank Name"
               placeholder="e.g. MCB Ltd / SBM Ltd"
               error={errors.payee?.bankName?.message}
               {...register("payee.bankName")}
             />
             <FormInput
-              label="Bank Account Number"
+              label="Payee Bank Account Number"
               placeholder="Account number"
               inputMode="numeric"
               error={errors.payee?.bankAccount?.message}
@@ -263,7 +440,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
 
           <VoucherSection
             title="Payment Details"
-            description="What is being paid and the total amount (optional for testing)"
+            description="What is being paid and the total amount"
             icon={Banknote}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
@@ -304,11 +481,32 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
           </VoucherSection>
 
           <VoucherSection
-            title="Banking Information"
-            description="Banking references for the payment"
+            title="Banking Information & Credited Account"
+            description="Specify which account the money is credited/debited from"
             icon={Building2}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
+            {/* Account from which money is credited */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-foreground">
+                Credited From Account ({activeSubsidiary.name})
+              </label>
+              <select
+                value={watch("banking.bankNumber") || ""}
+                onChange={handleCompanyAccountSelect}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {companyAccountSelectOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Corporate account details from {activeSubsidiary.shortName} bank master list
+              </p>
+            </div>
+
             <FormInput
               label="Cheque Number"
               placeholder="e.g. 458123"
@@ -321,38 +519,44 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               {...register("banking.chequeNumber")}
             />
             <FormInput
-              label="Bank Number"
-              placeholder="Branch / bank reference"
-              hint="Optional reference for tracking"
+              label="Custom Banking Reference"
+              placeholder="Branch or bank reference note"
+              hint="Selected account or custom bank reference"
               error={errors.banking?.bankNumber?.message}
               {...register("banking.bankNumber")}
             />
           </VoucherSection>
 
           <VoucherSection
-            title="Authorization"
-            description="People responsible for preparing and approving the payment (optional for testing)"
+            title="Authorization & Roles"
+            description="Maker and Approver assignment"
             icon={PenLine}
             contentClassName="grid gap-4 sm:grid-cols-2"
           >
-            <FormInput
-              label="Prepared By"
-              placeholder="Name of preparer"
+            <FormSelect
+              control={control}
+              name="authorization.preparedBy"
+              label="Prepared By (Maker)"
+              options={makerOptions}
               error={errors.authorization?.preparedBy?.message}
-              {...register("authorization.preparedBy")}
             />
-            <FormInput
-              label="Approval To Pay"
-              placeholder="Name of approver"
+
+            <FormSelect
+              control={control}
+              name="authorization.approvalToPay"
+              label="Approval To Pay (Approver)"
+              options={approverOptions}
               error={errors.authorization?.approvalToPay?.message}
-              {...register("authorization.approvalToPay")}
             />
-            <FormInput
-              label="Name Of Receiver"
-              placeholder="Person receiving the payment"
-              error={errors.authorization?.receiverName?.message}
-              {...register("authorization.receiverName")}
-            />
+
+            <div className="sm:col-span-2">
+              <FormInput
+                label="Name Of Receiver"
+                placeholder="Person or department receiving the payment"
+                error={errors.authorization?.receiverName?.message}
+                {...register("authorization.receiverName")}
+              />
+            </div>
 
             <Separator className="sm:col-span-2" />
 
@@ -360,8 +564,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
               <div className="mb-3">
                 <p className="text-sm font-medium">Signatures</p>
                 <p className="text-xs text-muted-foreground">
-                  Signature placeholders — e-signature capture arrives in a
-                  later phase
+                  Signature placeholders — e-signature capture arrives in a later phase
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -377,7 +580,7 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
           <CardFooter className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
               <CalendarDays className="mr-1 inline size-3" />
-              Connected to Neon PostgreSQL • All fields optional for testing
+              {activeSubsidiary.name} • Connected to Neon PostgreSQL
             </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button
@@ -429,6 +632,14 @@ export function VoucherForm({ defaultVoucherNumber }: VoucherFormProps) {
                 {pendingValues?.voucherInfo.voucherNumber || defaultVoucherNumber || "PV-AUTO"}
               </span>{" "}
               to the approval queue.
+            </span>
+            <span>
+              Subsidiary:{" "}
+              <span className="font-medium text-foreground">
+                {pendingValues?.voucherInfo.subsidiary === "medibroker"
+                  ? "Medibroker Ltd (Medi Broker)"
+                  : "Chartered Brokers Ltd"}
+              </span>
             </span>
             <span>
               Payee:{" "}

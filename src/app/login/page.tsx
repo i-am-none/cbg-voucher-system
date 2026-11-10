@@ -64,10 +64,32 @@ export default function LoginPage() {
     toast.info(`Signing in as ${demoName}...`);
 
     try {
-      const res = await signIn.email({
+      // 1. Attempt standard email sign-in
+      let res = await signIn.email({
         email: demoEmail,
         password: "cbgDemo2026!",
       });
+
+      // 2. If user or credentials are not yet initialized in the database, provision them and retry
+      if (res.error) {
+        try {
+          const provRes = await fetch("/api/auth/demo-account", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: demoEmail }),
+          });
+
+          if (provRes.ok) {
+            res = await signIn.email({
+              email: demoEmail,
+              password: "cbgDemo2026!",
+            });
+          }
+        } catch {
+          // If provisioning request fails, show the original error below
+        }
+      }
+
       if (res.error) {
         toast.error(res.error.message || "Failed to sign in");
       } else {
@@ -120,7 +142,7 @@ export default function LoginPage() {
                       <Input
                         required
                         type="text"
-                        placeholder="e.g. A. Fernandes"
+                        placeholder="e.g. Thasha"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="pl-9"
@@ -199,34 +221,52 @@ export default function LoginPage() {
 
         {/* Quick Demo Credentials */}
         <div className="rounded-lg border border-border bg-card p-4 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">Demo Accounts in Neon DB:</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <p className="font-semibold text-foreground">Sign-In Role Accounts:</p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={() => handleDemoLogin("a.fernandes@charteredbrokers.com", "A. Fernandes")}
+              onClick={() => handleDemoLogin("thasha@charteredbrokers.com", "Thasha")}
             >
-              Maker: A. Fernandes
+              Maker: Thasha
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={() => handleDemoLogin("s.patel@charteredbrokers.com", "S. Patel")}
+              onClick={() => handleDemoLogin("ravi@charteredbrokers.com", "Ravi")}
             >
-              Approver: S. Patel
+              Maker: Ravi
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={() => handleDemoLogin("admin@charteredbrokers.com", "Admin")}
+              onClick={() => handleDemoLogin("anoop@charteredbrokers.com", "Anoop")}
             >
-              Admin: CBG Admin
+              Approver: Anoop
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => handleDemoLogin("ashwina@charteredbrokers.com", "Ashwina")}
+            >
+              Approver: Ashwina
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs border-primary/40 font-semibold"
+              onClick={() => handleDemoLogin("anoop@charteredbrokers.com", "Anoop")}
+            >
+              Admin: Anoop
             </Button>
           </div>
         </div>
